@@ -28,7 +28,7 @@ The plan for milestone 2 and what parking iOS and Linux covers are in
 | `native/patches/` | Patches on top of the pinned baresip release |
 | `native/scripts/build.sh` | Builds OpenSSL, Opus, libg722, libre, baresip and `libsippier_core` for one target |
 | `third_party/` | libre, baresip, libg722 as pinned submodules |
-| `scripts/` | Install scripts for test builds; the Android release key |
+| `scripts/` | Install and uninstall scripts for test builds; the Android release key |
 | `.github/workflows/release.yml` | Builds and publishes a release for every version tag |
 | `spike_app/` | The original macOS spike |
 | `docs/sip-audio-research.md` | Research and design decisions |
@@ -93,26 +93,35 @@ Windows, in PowerShell:
 irm https://raw.githubusercontent.com/codejo-dev/sippier/main/scripts/install.ps1 | iex
 ```
 
-While the repository is private, testers need read access to it and the
-[GitHub CLI](https://cli.github.com) signed in (`gh auth login`), and fetch
-the scripts through it:
-
-```bash
-gh api repos/codejo-dev/sippier/contents/scripts/install.sh -H "Accept: application/vnd.github.raw" | bash
-```
-
-```powershell
-gh api repos/codejo-dev/sippier/contents/scripts/install.ps1 -H "Accept: application/vnd.github.raw" | Out-String | iex
-```
-
 Android: open the release on the phone, download `Sippier-android-arm64.apk`
 and open it; Android asks once to allow installing apps from the browser. A
 self-built Sippier has to be uninstalled first, as it's signed with another
 key.
 
 Until the apps are signed, macOS may ask for microphone access again after
-an update. To uninstall, delete `/Applications/Sippier.app` on macOS, and
-`%LOCALAPPDATA%\Programs\Sippier` and Sippier's Start menu entry on Windows.
+an update.
+
+### Uninstalling
+
+These remove Sippier and everything it keeps: accounts and their passwords,
+settings, call history and the log, on macOS also its microphone permission.
+
+macOS, in Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codejo-dev/sippier/main/scripts/uninstall.sh | bash
+```
+
+Sippier is sandboxed and keeps its data in its own container, so macOS may
+ask whether Terminal may access data from other apps.
+
+Windows, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/codejo-dev/sippier/main/scripts/uninstall.ps1 | iex
+```
+
+Android: uninstall it like any other app, which removes its data too.
 
 ### Making a release
 

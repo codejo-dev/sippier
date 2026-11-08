@@ -9,7 +9,7 @@
 #
 # Environment:
 #   SIPPIER_VERSION  the release to install, e.g. v0.2.0 (default: newest)
-#   GITHUB_TOKEN     for a private repository (default: `gh auth token`)
+#   GITHUB_TOKEN     for GitHub's API, against its rate limit (default: `gh auth token`)
 
 & {
   $ErrorActionPreference = 'Stop'
@@ -38,7 +38,7 @@
   try {
     $releases = Invoke-RestMethod $url -Headers $headers -UseBasicParsing
   } catch {
-    throw 'No release found. While the repository is private you need read access to it and the GitHub CLI signed in (gh auth login).'
+    throw 'No release found'
   }
   # A list of releases, newest first, or one release
   $release = $releases[0]

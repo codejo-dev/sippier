@@ -10,7 +10,7 @@
 #
 # Environment:
 #   SIPPIER_VERSION  the release to install, e.g. v0.2.0 (default: newest)
-#   GITHUB_TOKEN     for a private repository (default: `gh auth token`)
+#   GITHUB_TOKEN     for GitHub's API, against its rate limit (default: `gh auth token`)
 #
 # Everything is in main, so a partial download through the pipe runs nothing.
 
@@ -39,8 +39,7 @@ main() {
 
   local url="$api/releases?per_page=1"
   if [[ -n ${SIPPIER_VERSION:-} ]]; then url="$api/releases/tags/$SIPPIER_VERSION"; fi
-  get "$url" application/vnd.github+json "$tmp/release.json" ||
-    die "no release found. While the repository is private you need read access to it and the GitHub CLI signed in (gh auth login)."
+  get "$url" application/vnd.github+json "$tmp/release.json" || die "no release found"
 
   local tag zip_url sums_url
   read -r tag zip_url sums_url < <(release_info "$tmp/release.json" "$asset") || true
