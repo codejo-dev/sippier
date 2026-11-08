@@ -51,6 +51,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get buttonSave => 'Speichern';
 
   @override
+  String get buttonExport => 'Exportieren';
+
+  @override
+  String get buttonImport => 'Importieren';
+
+  @override
   String get headerGeneral => 'Allgemein';
 
   @override
@@ -187,6 +193,69 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get accountsEmpty =>
       'Sippier funktioniert mit jedem SIP-Anbieter. Trage die Zugangsdaten deines Anbieters ein.';
+
+  @override
+  String get accountsExport => 'Konten exportieren';
+
+  @override
+  String get accountsImport => 'Konten importieren';
+
+  @override
+  String get accountsFileType => 'Sippier-Konten';
+
+  @override
+  String get accountsExportTitle => 'Mit Passwörtern exportieren?';
+
+  @override
+  String get accountsExportWarning =>
+      'Die Datei enthält die Passwörter deiner Konten unverschlüsselt. Wer sie bekommt, kann deine Leitungen nutzen. Bewahre sie sicher auf und lösche sie, sobald du sie nicht mehr brauchst.';
+
+  @override
+  String accountsExported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Konten exportiert',
+      one: '1 Konto exportiert',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get fileWriteFailed => 'Die Datei konnte nicht geschrieben werden.';
+
+  @override
+  String accountsImportTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Konten importieren?',
+      one: '1 Konto importieren?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsImportReplaces =>
+      'Ein Konto mit derselben Adresse wie ein vorhandenes ersetzt dieses, samt Passwort.';
+
+  @override
+  String accountsImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Konten importiert',
+      one: '1 Konto importiert',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsImportInvalid => 'Das ist keine Kontendatei von Sippier.';
+
+  @override
+  String get accountsImportNewer =>
+      'Die Datei stammt von einer neueren Sippier-Version. Aktualisiere Sippier, um sie zu importieren.';
 
   @override
   String removeAccountQuestion(String account) {

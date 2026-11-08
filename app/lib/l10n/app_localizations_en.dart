@@ -51,6 +51,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get buttonSave => 'Save';
 
   @override
+  String get buttonExport => 'Export';
+
+  @override
+  String get buttonImport => 'Import';
+
+  @override
   String get headerGeneral => 'General';
 
   @override
@@ -185,6 +191,69 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountsEmpty =>
       'Sippier works with any SIP provider. Add the account details from your provider.';
+
+  @override
+  String get accountsExport => 'Export accounts';
+
+  @override
+  String get accountsImport => 'Import accounts';
+
+  @override
+  String get accountsFileType => 'Sippier accounts';
+
+  @override
+  String get accountsExportTitle => 'Export with passwords?';
+
+  @override
+  String get accountsExportWarning =>
+      'The file has your accounts\' passwords in it, unencrypted. Anyone who gets it can use your lines. Keep it somewhere safe, and delete it once you don\'t need it any more.';
+
+  @override
+  String accountsExported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Exported $count accounts',
+      one: 'Exported 1 account',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get fileWriteFailed => 'Couldn\'t write the file.';
+
+  @override
+  String accountsImportTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Import $count accounts?',
+      one: 'Import 1 account?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsImportReplaces =>
+      'An account with the same address as one you have replaces it, password included.';
+
+  @override
+  String accountsImported(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Imported $count accounts',
+      one: 'Imported 1 account',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get accountsImportInvalid => 'That isn\'t a Sippier accounts file.';
+
+  @override
+  String get accountsImportNewer =>
+      'That file is from a newer Sippier. Update Sippier to import it.';
 
   @override
   String removeAccountQuestion(String account) {

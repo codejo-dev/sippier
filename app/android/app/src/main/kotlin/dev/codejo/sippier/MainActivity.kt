@@ -41,6 +41,14 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
     }
 
+    // The file PlatformChannel.saveFile asked the user for
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PlatformChannel.SAVE_REQUEST) {
+            platform.onSaveResult(if (resultCode == RESULT_OK) data?.data else null)
+        }
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {

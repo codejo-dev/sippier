@@ -31,6 +31,7 @@ import androidx.core.app.Person
 import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
+import java.io.IOException
 import kotlin.system.exitProcess
 
 /**
@@ -91,6 +92,12 @@ class PlatformChannel(private val context: Context, messenger: BinaryMessenger) 
                 "quit" -> { quit(); result.success(null) }
                 "setLanguage" -> { setLanguage(call.arguments as String?); result.success(null) }
                 "openUrl" -> { openUrl(call.arguments as String); result.success(null) }
+                "saveFile" -> {
+                    val args = call.arguments as Map<*, *>
+                    saveFile(
+                        args["name"] as String, args["mimeType"] as String,
+                        (args["content"] as String).toByteArray(), result)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -129,6 +136,43 @@ class PlatformChannel(private val context: Context, messenger: BinaryMessenger) 
         micResult?.success(false)
         micResult = result
         a.requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST)
+    }
+
+    // Saving a file where the user picks: the system's "create document"
+    // screen (needs the activity). Answers false if they cancel.
+
+    private var saveResult: MethodChannel.Result? = null
+    private var saveContent: ByteArray? = null
+
+    private fun saveFile(
+        name: String, mimeType: String, content: ByteArray, result: MethodChannel.Result
+    ) {
+        val a = activity ?: return result.success(false)
+        saveResult?.success(false)
+        saveResult = result
+        saveContent = content
+        a.startActivityForResult(
+            Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(mimeType)
+                .putExtra(Intent.EXTRA_TITLE, name),
+            SAVE_REQUEST)
+    }
+
+    fun onSaveResult(uri: Uri?) {
+        val result = saveResult ?: return
+        val content = saveContent
+        saveResult = null
+        saveContent = null
+        if (uri == null || content == null) return result.success(false)
+        try {
+            val out = context.contentResolver.openOutputStream(uri, "wt")
+                ?: throw IOException("Can't write $uri")
+            out.use { it.write(content) }
+            result.success(true)
+        } catch (e: Exception) {
+            result.error("saveFile", e.message, null)
+        }
     }
 
     fun onMicrophoneResult(granted: Boolean) {
@@ -425,5 +469,6 @@ class PlatformChannel(private val context: Context, messenger: BinaryMessenger) 
         const val INCOMING_CALL_ID = 2
         const val EXTRA_CALL_ID = "callId"
         const val MIC_REQUEST = 1
+        const val SAVE_REQUEST = 3
     }
 }

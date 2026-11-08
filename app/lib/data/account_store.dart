@@ -65,9 +65,15 @@ class AccountStore {
   final File _file;
 
   // The legacy macOS keychain needs no keychain-access-groups entitlement,
-  // so the app runs without a provisioning profile.
+  // so the app runs without a provisioning profile. The items' service is
+  // Sippier's own, not the plugin's default that every Flutter app shares,
+  // so the keychain and its prompts name Sippier. (Up to 0.1.0-beta.2 it
+  // was the default, flutter_secure_storage_service.)
   static const _secure = FlutterSecureStorage(
-    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+    mOptions: MacOsOptions(
+      accountName: 'Sippier',
+      usesDataProtectionKeychain: false,
+    ),
   );
 
   static String newId() {

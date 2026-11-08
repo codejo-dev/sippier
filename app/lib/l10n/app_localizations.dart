@@ -176,6 +176,18 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get buttonSave;
 
+  /// No description provided for @buttonExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get buttonExport;
+
+  /// No description provided for @buttonImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get buttonImport;
+
   /// No description provided for @headerGeneral.
   ///
   /// In en, this message translates to:
@@ -397,6 +409,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sippier works with any SIP provider. Add the account details from your provider.'**
   String get accountsEmpty;
+
+  /// No description provided for @accountsExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export accounts'**
+  String get accountsExport;
+
+  /// No description provided for @accountsImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import accounts'**
+  String get accountsImport;
+
+  /// File type in the save and open dialogs
+  ///
+  /// In en, this message translates to:
+  /// **'Sippier accounts'**
+  String get accountsFileType;
+
+  /// No description provided for @accountsExportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export with passwords?'**
+  String get accountsExportTitle;
+
+  /// No description provided for @accountsExportWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'The file has your accounts\' passwords in it, unencrypted. Anyone who gets it can use your lines. Keep it somewhere safe, and delete it once you don\'t need it any more.'**
+  String get accountsExportWarning;
+
+  /// No description provided for @accountsExported.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Exported 1 account} other{Exported {count} accounts}}'**
+  String accountsExported(int count);
+
+  /// No description provided for @fileWriteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t write the file.'**
+  String get fileWriteFailed;
+
+  /// No description provided for @accountsImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Import 1 account?} other{Import {count} accounts?}}'**
+  String accountsImportTitle(int count);
+
+  /// No description provided for @accountsImportReplaces.
+  ///
+  /// In en, this message translates to:
+  /// **'An account with the same address as one you have replaces it, password included.'**
+  String get accountsImportReplaces;
+
+  /// No description provided for @accountsImported.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Imported 1 account} other{Imported {count} accounts}}'**
+  String accountsImported(int count);
+
+  /// No description provided for @accountsImportInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'That isn\'t a Sippier accounts file.'**
+  String get accountsImportInvalid;
+
+  /// No description provided for @accountsImportNewer.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is from a newer Sippier. Update Sippier to import it.'**
+  String get accountsImportNewer;
 
   /// No description provided for @removeAccountQuestion.
   ///

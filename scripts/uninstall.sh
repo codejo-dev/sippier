@@ -42,10 +42,17 @@ main() {
     pkill -x Sippier || true
   fi
 
-  # The passwords are in the login keychain, under the service name every
-  # Flutter app's secure storage shares, so only those of Sippier's accounts
+  # The passwords are in the login keychain, under the service "Sippier": all
+  # of them, one at a time
+  local removed=0 _
+  for _ in $(seq 100); do
+    security delete-generic-password -s Sippier >/dev/null 2>&1 || break
+    removed=$((removed + 1))
+  done
+  # Up to 0.1.0-beta.2 under the service name every Flutter app's secure
+  # storage shares, so there only those of Sippier's accounts
   if [[ -f $accounts ]]; then
-    local ids account removed=0
+    local ids account
     ids=$(account_ids "$accounts" 2>/dev/null) || die "$access"
     for account in $ids; do
       if security delete-generic-password -s flutter_secure_storage_service \
@@ -53,9 +60,9 @@ main() {
         removed=$((removed + 1))
       fi
     done
-    if [[ $removed -gt 0 ]]; then
-      echo "Removed $removed account password(s) from the keychain"
-    fi
+  fi
+  if [[ $removed -gt 0 ]]; then
+    echo "Removed $removed account password(s) from the keychain"
   fi
 
   # Microphone and any other privacy permission

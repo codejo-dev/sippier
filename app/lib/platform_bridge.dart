@@ -109,6 +109,16 @@ class PlatformBridge {
   /// Opens a web page in the default browser.
   Future<void> openUrl(String url) => _invoke('openUrl', url);
 
+  /// Android: saves [content] where the user picks, in the system's file
+  /// screen. False if they cancel; null elsewhere, where file_selector's
+  /// save dialog does it.
+  Future<bool?> saveFile(String name, String mimeType, String content) =>
+      _invoke<bool>('saveFile', {
+        'name': name,
+        'mimeType': mimeType,
+        'content': content,
+      });
+
   /// macOS 13+ and Windows: whether Sippier starts when the user logs in,
   /// as the system has it (the user can change it there too). Null where
   /// that's not up to the app.

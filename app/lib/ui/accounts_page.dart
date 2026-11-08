@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../providers.dart';
 import 'account_form.dart';
+import 'account_transfer.dart';
 import 'common.dart';
 
 class AccountsPage extends ConsumerWidget {
@@ -23,7 +24,25 @@ class AccountsPage extends ConsumerWidget {
     final notifier = ref.read(phoneProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l.navAccounts)),
+      appBar: AppBar(
+        title: Text(l.navAccounts),
+        actions: [
+          PopupMenuButton<void Function()>(
+            onSelected: (action) => action(),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: () => exportAccounts(context, ref),
+                enabled: phone.accounts.isNotEmpty,
+                child: Text(l.accountsExport),
+              ),
+              PopupMenuItem(
+                value: () => importAccounts(context, ref),
+                child: Text(l.accountsImport),
+              ),
+            ],
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => openForm(context),
         icon: const Icon(Icons.add),
@@ -33,7 +52,19 @@ class AccountsPage extends ConsumerWidget {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(l.accountsEmpty, textAlign: TextAlign.center),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(l.accountsEmpty, textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    // e.g. on a new device, from an export of the old one
+                    TextButton.icon(
+                      onPressed: () => importAccounts(context, ref),
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: Text(l.accountsImport),
+                    ),
+                  ],
+                ),
               ),
             )
           : ListView(
