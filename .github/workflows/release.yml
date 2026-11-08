@@ -1,0 +1,268 @@
+name: Release
+
+# Push a tag to build Sippier for macOS, Windows and Android and publish the
+# builds as a GitHub release:
+#
+#   git tag v0.2.0 && git push origin v0.2.0                  # a release
+#   git tag v0.2.0-beta.1 && git push origin v0.2.0-beta.1    # a pre-release
+#
+# Builds for early testers: the macOS app is only ad-hoc signed and the
+# Windows one unsigned, so testers install with scripts/install.sh and
+# scripts/install.ps1, which avoid the warnings for downloaded apps. The APK
+# is signed with the release key from scripts/android-release-key.sh.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  # The release app/pubspec.lock was resolved with; older ones change it
+  FLUTTER_VERSION: 3.47.9
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.version.outputs.name }}
+      number: ${{ steps.version.outputs.number }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      # v1.2.3 is 1.2.3; v1.2.3-beta.1 is 1.2.3 too, published as a
+      # pre-release. The build number is the run number, so Android's
+      # versionCode grows with every release.
+      - id: version
+        run: |
+          if [[ ! $GITHUB_REF_NAME =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-.+)?$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME isn't v<major>.<minor>.<patch>[-<suffix>]"
+            exit 1
+          fi
+          prerelease=false
+          if [[ -n ${BASH_REMATCH[2]} ]]; then prerelease=true; fi
+          {
+            echo "name=${BASH_REMATCH[1]}"
+            echo "number=$GITHUB_RUN_NUMBER"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+  # The native libraries are cached per target. Only an exact match is
+  # restored: build.sh skips OpenSSL, Opus and WebRTC audio processing when
+  # their libraries exist, so an older cache would keep older versions.
+  # libre, baresip and libsippier_core are rebuilt every time.
+
+  macos:
+    name: macOS
+    needs: version
+    runs-on: macos-26
+    env:
+      BUILD_NAME: ${{ needs.version.outputs.name }}
+      BUILD_NUMBER: ${{ needs.version.outputs.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Build tools
+        run: brew install meson # CMake and Ninja are on the image
+      - name: Flutter
+        run: |
+          git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - id: native
+        run: echo "submodules=$(git rev-parse HEAD:third_party)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            build/downloads
+            build/macos-arm64
+          key: native-macos-arm64-${{ steps.native.outputs.submodules }}-${{ hashFiles('native/scripts/**', 'native/patches/**') }}
+      - name: Build
+        working-directory: app
+        run: flutter build macos --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+      - name: Package
+        run: |
+          app=app/build/macos/Build/Products/Release/Sippier.app
+          # Ad-hoc signed. With a broken signature macOS calls the app damaged.
+          codesign --verify --deep --strict "$app"
+          # Apple silicon only (EXCLUDED_ARCHS in the Xcode project)
+          archs=$(lipo -archs "$app/Contents/MacOS/Sippier")
+          if [[ $archs != arm64 ]]; then
+            echo "::error::Expected an arm64 app, got: $archs"
+            exit 1
+          fi
+          ditto -c -k --keepParent "$app" Sippier-macos.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: Sippier-macos.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            runner: windows-11-arm
+            msystem: CLANGARM64
+            nasm: ''
+          - arch: x64
+            runner: windows-latest
+            msystem: CLANG64
+            nasm: nasm:p
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      BUILD_NAME: ${{ needs.version.outputs.name }}
+      BUILD_NUMBER: ${{ needs.version.outputs.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      # The image's MSYS2 in C:\msys64, where the build hook looks for it
+      - uses: msys2/setup-msys2@v2
+        with:
+          release: false
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: make patch perl cpio git
+          pacboy: toolchain:p cmake:p ninja:p meson:p pkgconf:p ${{ matrix.nasm }}
+      - name: Let MSYS2's git read the checkout
+        shell: msys2 {0}
+        run: git config --global --add safe.directory '*'
+      - name: Flutter
+        run: |
+          git clone --quiet --depth 1 --branch $env:FLUTTER_VERSION `
+            https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          Add-Content $env:GITHUB_PATH "$env:RUNNER_TEMP\flutter\bin"
+      - id: native
+        run: Add-Content $env:GITHUB_OUTPUT "submodules=$(git rev-parse HEAD:third_party)"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            build/downloads
+            build/windows-${{ matrix.arch }}
+          key: native-windows-${{ matrix.arch }}-${{ steps.native.outputs.submodules }}-${{ hashFiles('native/scripts/**', 'native/patches/**') }}
+      - name: Build
+        working-directory: app
+        run: flutter build windows --release --build-name $env:BUILD_NAME --build-number $env:BUILD_NUMBER
+      - name: Package
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          $release = "app\build\windows\$env:ARCH\runner\Release"
+          # Flutter apps need the MSVC runtime. Shipped along for PCs without
+          # the Visual C++ Redistributable, which many Windows on Arm PCs lack.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\$env:ARCH\Microsoft.VC*.CRT" -Directory |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw "No MSVC runtime for $env:ARCH under $vs" }
+          Copy-Item "$crt\*.dll" $release
+          Get-ChildItem $release | Format-Table Name, Length
+          Compress-Archive "$release\*" "Sippier-windows-$env:ARCH.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-${{ matrix.arch }}
+          path: Sippier-windows-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  android:
+    name: Android
+    needs: version
+    runs-on: ubuntu-24.04
+    env:
+      BUILD_NAME: ${{ needs.version.outputs.name }}
+      BUILD_NUMBER: ${{ needs.version.outputs.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Build tools
+        run: sudo apt-get update -q && sudo apt-get install -yq ninja-build
+      - name: Flutter
+        run: |
+          git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - id: native
+        run: echo "submodules=$(git rev-parse HEAD:third_party)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            build/downloads
+            build/android-arm64
+          key: native-android-arm64-${{ steps.native.outputs.submodules }}-${{ hashFiles('native/scripts/**', 'native/patches/**') }}
+      - name: Release key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -z $KEYSTORE || -z $PASSWORD ]]; then
+            echo "::error::No Android release key in the repository secrets. Run scripts/android-release-key.sh once."
+            exit 1
+          fi
+          base64 -d <<< "$KEYSTORE" > "$RUNNER_TEMP/release.jks"
+          # A properties file reads \ as an escape
+          esc() { printf '%s' "${1//\\/\\\\}"; }
+          cat > app/android/key.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$(esc "$PASSWORD")
+          keyAlias=$(esc "${ALIAS:-sippier}")
+          keyPassword=$(esc "${KEY_PASSWORD:-$PASSWORD}")
+          EOF
+      # arm64 only, as nearly all phones are; 32-bit ARM would double the
+      # native build
+      - name: Build
+        working-directory: app
+        run: |
+          flutter build apk --release --target-platform android-arm64 \
+            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          cp build/app/outputs/flutter-apk/app-release.apk ../Sippier-android-arm64.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-arm64
+          path: Sippier-android-arm64.apk
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: [version, macos, windows, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          cd dist
+          sha256sum Sippier-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Test build. The macOS and Windows apps aren't code-signed yet, so install them with the scripts in [Test builds]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY#test-builds); the Android APK installs directly.
+
+          EOF
+          flags=()
+          if [[ $PRERELEASE == true ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" Sippier-* SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Sippier ${GITHUB_REF_NAME#v}" \
+            --notes-file "$RUNNER_TEMP/notes.md" --generate-notes "${flags[@]}"

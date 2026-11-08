@@ -1,0 +1,7 @@
+# Native build output (native/scripts/build_*.sh)
+/build/
+/build-*.log
+
+.DS_Store
+.vscode/
+.idea/

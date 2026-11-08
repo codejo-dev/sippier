@@ -1,0 +1,172 @@
+diff -ru a/include/baresip.h b/include/baresip.h
+--- a/include/baresip.h
++++ b/include/baresip.h
+@@ -986,6 +986,8 @@
+ int  ua_update_account(struct ua *ua);
+ int  ua_register(struct ua *ua);
+ int  ua_fallback(struct ua *ua);
++int  ua_refresh_register(struct ua *ua);
++int  ua_keepalive(const struct ua *ua);
+ void ua_unregister(struct ua *ua);
+ void ua_stop_register(struct ua *ua);
+ bool ua_isregistered(const struct ua *ua);
+diff -ru a/src/core.h b/src/core.h
+--- a/src/core.h
++++ b/src/core.h
+@@ -229,6 +229,8 @@
+ int  reg_add(struct list *lst, struct ua *ua, int regid);
+ int  reg_register(struct reg *reg, const char *reg_uri,
+ 		    const char *params, uint32_t regint, const char *outbound);
++int  reg_refresh(struct reg *reg);
++bool reg_keepalive(const struct reg *reg);
+ void reg_unregister(struct reg *reg);
+ void reg_stop(struct reg *reg);
+ bool reg_isok(const struct reg *reg);
+diff -ru a/src/reg.c b/src/reg.c
+--- a/src/reg.c
++++ b/src/reg.c
+@@ -19,6 +19,7 @@
+ 	int id;                      /**< Registration ID (for SIP outbound) */
+ 	int regint;                  /**< Registration interval              */
+ 	struct sa paddr;             /**< Peer Address                       */
++	enum sip_transp ptp;         /**< Transport to the peer              */
+ 
+ 	/* status: */
+ 	uint16_t scode;              /**< Registration status code           */
+@@ -198,6 +199,7 @@
+ 		uint32_t n_bindings;
+ 
+ 		reg->paddr = msg->src;
++		reg->ptp   = msg->tp;
+ 
+ 		n_bindings = sip_msg_hdr_count(msg, SIP_HDR_CONTACT);
+ 		reg->af    = sipmsg_af(msg);
+@@ -349,6 +351,62 @@
+ 	}
+ 
+ 	return sipreg_send(reg->sipreg);
++}
++
++
++/**
++ * Refresh the current registration: same Call-ID, next CSeq. reg_register()
++ * starts a new one and unregisters the old binding in parallel, which some
++ * registrars (IMS) answer with a stale nonce.
++ *
++ * @param reg Registration client
++ *
++ * @return 0 if success, ENOENT if there is no registration to refresh
++ */
++int reg_refresh(struct reg *reg)
++{
++	if (!reg)
++		return EINVAL;
++
++	if (!reg->sipreg || !reg->regint)
++		return ENOENT;
++
++	return sipreg_send(reg->sipreg);
++}
++
++
++/**
++ * NAT keep-alive: an empty line to the registrar over UDP refreshes the
++ * router's mapping, so the registrar's requests still get through
++ * (RFC 5626 uses STUN for UDP, which plain registrars don't answer).
++ *
++ * @param reg Registration client
++ *
++ * @return True if sent
++ */
++bool reg_keepalive(const struct reg *reg)
++{
++	struct mbuf *mb;
++	int err;
++
++	if (!reg || !reg_isok(reg) || reg->ptp != SIP_TRANSP_UDP ||
++	    !sa_isset(&reg->paddr, SA_ALL))
++		return false;
++
++	mb = mbuf_alloc(4);
++	if (!mb)
++		return false;
++
++	err = mbuf_write_str(mb, "\r\n\r\n");
++	mb->pos = 0;
++	if (!err)
++		err = sip_send(uag_sip(), NULL, SIP_TRANSP_UDP, &reg->paddr,
++			       mb);
++	if (err)
++		warning("reg: keep-alive to %J: %m\n", &reg->paddr, err);
++
++	mem_deref(mb);
++	return err == 0;
+ }
+ 
+ 
+diff -ru a/src/ua.c b/src/ua.c
+--- a/src/ua.c
++++ b/src/ua.c
+@@ -264,6 +264,62 @@
+ 
+ 
+ /**
++ * Refresh the registrations of a User-Agent, keeping their Call-ID. Starts
++ * new ones where there is nothing to refresh.
++ *
++ * @param ua User-Agent
++ *
++ * @return 0 if success, otherwise errorcode
++ */
++int ua_refresh_register(struct ua *ua)
++{
++	struct le *le;
++	int err = 0;
++
++	if (!ua)
++		return EINVAL;
++
++	if (list_isempty(&ua->regl))
++		return ua_register(ua);
++
++	for (le = ua->regl.head; le; le = le->next) {
++		struct reg *reg = le->data;
++
++		err = reg_refresh(reg);
++		if (err == ENOENT)
++			return ua_register(ua);
++		if (err)
++			break;
++	}
++
++	return err;
++}
++
++
++/**
++ * Send NAT keep-alives to the registrars of a User-Agent (registered over
++ * UDP only)
++ *
++ * @param ua User-Agent
++ *
++ * @return Number of keep-alives sent
++ */
++int ua_keepalive(const struct ua *ua)
++{
++	struct le *le;
++	int n = 0;
++
++	if (!ua)
++		return 0;
++
++	for (le = ua->regl.head; le; le = le->next)
++		n += reg_keepalive(le->data);
++
++	return n;
++}
++
++
++/**
+  * Start fallback registration checks (Cisco-keep-alive) of a User-Agent. These
+  * are in the sense of RFC3261 REGISTER requests with expire set to zero. A
+  * SIP proxy will handle this as un-register and send a 200 OK. Then the UA is

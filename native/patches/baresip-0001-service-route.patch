@@ -1,0 +1,239 @@
+diff --git a/src/call.c b/src/call.c
+index 6923fbc..014a63a 100644
+--- a/src/call.c
++++ b/src/call.c
+@@ -2708,10 +2708,18 @@ static int call_print_replaces(struct re_printf *pf, const struct call *call) {
+ 
+ static int send_invite(struct call *call)
+ {
+-	const char *routev[1];
++	/* Outbound proxy, then the registration's Service-Route set
++	 * (RFC 3608, 3GPP TS 24.229 5.1.2A.1.1; required by IMS providers) */
++	const char *routev[5];
++	uint32_t routec = 0;
+ 	int err;
+ 
+ 	routev[0] = account_outbound(call->acc, 0);
++	if (routev[0])
++		++routec;
++
++	routec += ua_service_route(call->ua, routev + routec,
++				   RE_ARRAY_SIZE(routev) - routec);
+ 
+ 	if (!list_isempty(&call->streaml)) {
+ 		err = bevent_call_emit(BEVENT_CALL_LOCAL_SDP, call, "offer");
+@@ -2724,8 +2732,8 @@ static int send_invite(struct call *call)
+ 			      call->local_name,
+ 			      call->local_uri,
+ 			      ua_cuser(call->ua),
+-			      routev[0] ? routev : NULL,
+-			      routev[0] ? 1 : 0,
++			      routec ? routev : NULL,
++			      routec,
+ 			      "application/sdp",
+ 			      auth_handler, call->acc, true,
+ 			      call->id,
+diff --git a/src/core.h b/src/core.h
+index c22060e..888781f 100644
+--- a/src/core.h
++++ b/src/core.h
+@@ -240,6 +240,10 @@ int  reg_af(const struct reg *reg);
+ const struct sa *reg_laddr(const struct reg *reg);
+ const struct sa *reg_paddr(const struct reg *reg);
+ void reg_set_custom_hdrs(struct reg *reg, const struct list *hdrs);
++uint32_t reg_service_route(const struct reg *reg, const char **routev,
++			   uint32_t max);
++uint32_t ua_service_route(const struct ua *ua, const char **routev,
++			  uint32_t max);
+ 
+ /*
+  * RTP Stats
+diff --git a/src/reg.c b/src/reg.c
+index 2ce1d71..87f4822 100644
+--- a/src/reg.c
++++ b/src/reg.c
+@@ -3,12 +3,15 @@
+  *
+  * Copyright (C) 2010 Alfred E. Heggestad
+  */
++#include <ctype.h>
+ #include <re.h>
+ #include <baresip.h>
+ #include "core.h"
+ 
+ 
+ /** Register client */
++enum { SRVROUTE_MAX = 4 };
++
+ struct reg {
+ 	struct le le;                /**< Linked list element                */
+ 	struct ua *ua;               /**< Pointer to parent UA object        */
+@@ -23,9 +26,20 @@ struct reg {
+ 	int af;                      /**< Cached address family for SIP conn */
+ 
+ 	struct list custom_hdrs;     /**< List of custom headers if any      */
++	char *srvroutev[SRVROUTE_MAX]; /**< Service-Route set (RFC 3608)    */
++	uint32_t srvroutec;          /**< Number of Service-Route entries    */
+ };
+ 
+ 
++static void srvroute_clear(struct reg *reg)
++{
++	for (uint32_t i = 0; i < reg->srvroutec; i++)
++		reg->srvroutev[i] = mem_deref(reg->srvroutev[i]);
++
++	reg->srvroutec = 0;
++}
++
++
+ static void destructor(void *arg)
+ {
+ 	struct reg *reg = arg;
+@@ -33,6 +47,7 @@ static void destructor(void *arg)
+ 	list_unlink(&reg->le);
+ 	mem_deref(reg->sipreg);
+ 	mem_deref(reg->srv);
++	srvroute_clear(reg);
+ 
+ 	list_flush(&reg->custom_hdrs);
+ }
+@@ -101,6 +116,55 @@ static bool contact_handler(const struct sip_hdr *hdr,
+ }
+ 
+ 
++/* libre appends ";lr" to each preloaded route, so drop an existing one */
++static int route_dup(char **dstp, const struct pl *uri)
++{
++	const char *p = uri->p;
++	const char *end = uri->p + uri->l;
++	char *dst;
++	size_t n = 0;
++
++	dst = mem_zalloc(uri->l + 1, NULL);
++	if (!dst)
++		return ENOMEM;
++
++	while (p < end) {
++		if (end - p >= 3 && p[0] == ';' &&
++		    tolower((unsigned char)p[1]) == 'l' &&
++		    tolower((unsigned char)p[2]) == 'r' &&
++		    (p + 3 == end || p[3] == ';' || p[3] == '?')) {
++			p += 3;
++			continue;
++		}
++
++		dst[n++] = *p++;
++	}
++
++	*dstp = dst;
++	return 0;
++}
++
++
++static bool srvroute_handler(const struct sip_hdr *hdr,
++			     const struct sip_msg *msg, void *arg)
++{
++	struct reg *reg = arg;
++	struct sip_addr addr;
++	(void)msg;
++
++	if (reg->srvroutec >= SRVROUTE_MAX)
++		return true;
++
++	if (sip_addr_decode(&addr, &hdr->val))
++		return false;
++
++	if (0 == route_dup(&reg->srvroutev[reg->srvroutec], &addr.auri))
++		++reg->srvroutec;
++
++	return false;
++}
++
++
+ static void register_handler(int err, const struct sip_msg *msg, void *arg)
+ {
+ 	struct reg *reg = arg;
+@@ -149,6 +213,14 @@ static void register_handler(int err, const struct sip_msg *msg, void *arg)
+ 
+ 		reg->scode = msg->scode;
+ 
++		srvroute_clear(reg);
++		(void)sip_msg_hdr_apply(msg, true, SIP_HDR_SERVICE_ROUTE,
++					srvroute_handler, reg);
++		if (reg->srvroutec)
++			info("reg: %s: using %u Service-Route entr%s\n",
++			     account_aor(acc), reg->srvroutec,
++			     reg->srvroutec == 1 ? "y" : "ies");
++
+ 		hdr = sip_msg_hdr_apply(msg, true, SIP_HDR_CONTACT,
+ 					contact_handler, reg);
+ 		if (hdr) {
+@@ -431,3 +503,27 @@ const struct sa *reg_paddr(const struct reg *reg)
+ {
+ 	return reg ? &reg->paddr : NULL;
+ }
++
++
++/**
++ * Get the Service-Route set of the last successful registration (RFC 3608)
++ *
++ * @param reg    Registration client
++ * @param routev Array to fill with route URIs (without ;lr)
++ * @param max    Size of routev
++ *
++ * @return Number of entries written
++ */
++uint32_t reg_service_route(const struct reg *reg, const char **routev,
++			   uint32_t max)
++{
++	uint32_t i;
++
++	if (!reg || !routev)
++		return 0;
++
++	for (i = 0; i < reg->srvroutec && i < max; i++)
++		routev[i] = reg->srvroutev[i];
++
++	return i;
++}
+diff --git a/src/ua.c b/src/ua.c
+index 4d8441c..495ab1a 100644
+--- a/src/ua.c
++++ b/src/ua.c
+@@ -2356,3 +2356,36 @@ bool ua_req_check_origin(const struct ua *ua, const struct sip_msg *msg)
+ 
+ 	return false;
+ }
++
++
++/**
++ * Get the Service-Route set of the User-Agent's active registration
++ *
++ * @param ua     User-Agent
++ * @param routev Array to fill with route URIs
++ * @param max    Size of routev
++ *
++ * @return Number of entries written
++ */
++uint32_t ua_service_route(const struct ua *ua, const char **routev,
++			  uint32_t max)
++{
++	struct le *le;
++
++	if (!ua)
++		return 0;
++
++	LIST_FOREACH(&ua->regl, le) {
++		const struct reg *reg = le->data;
++		uint32_t n;
++
++		if (!reg_isok(reg))
++			continue;
++
++		n = reg_service_route(reg, routev, max);
++		if (n)
++			return n;
++	}
++
++	return 0;
++}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native strings: notifications and their channels, which Android also
+     shows in its settings. The app's own strings are in lib/l10n. -->
+<resources>
+    <string name="channel_service">Ready for calls</string>
+    <string name="channel_service_description">Shown while Sippier stays registered in the background</string>
+    <string name="channel_calls">Incoming calls</string>
+    <string name="notification_ready">Ready for calls</string>
+    <string name="notification_in_call">In a call</string>
+    <string name="notification_quit">Quit</string>
+    <string name="notification_incoming_call">Incoming call</string>
+    <string name="caller_unknown">Unknown</string>
+</resources>

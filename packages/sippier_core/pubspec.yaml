@@ -1,0 +1,16 @@
+name: sippier_core
+description: Dart bindings for Sippier's native SIP core (baresip via dart:ffi).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  code_assets: ^1.0.0
+  ffi: ^2.1.0
+  hooks: ^1.0.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

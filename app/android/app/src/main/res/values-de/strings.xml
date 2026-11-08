@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_service">Bereit für Anrufe</string>
+    <string name="channel_service_description">Wird angezeigt, solange Sippier im Hintergrund registriert bleibt</string>
+    <string name="channel_calls">Eingehende Anrufe</string>
+    <string name="notification_ready">Bereit für Anrufe</string>
+    <string name="notification_in_call">Im Gespräch</string>
+    <string name="notification_quit">Beenden</string>
+    <string name="notification_incoming_call">Eingehender Anruf</string>
+    <string name="caller_unknown">Unbekannt</string>
+</resources>

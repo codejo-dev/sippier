@@ -1,0 +1,32 @@
+name: sippier
+description: "Sippier, a simple open-source SIP phone."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  file_selector: ^1.1.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^3.0.0
+  flutter_secure_storage: ^11.2.0
+  intl: any
+  path_provider: ^2.1.6
+  sippier_core:
+    path: ../packages/sippier_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  # lib/l10n/app_*.arb -> lib/l10n/app_localizations*.dart (l10n.yaml)
+  generate: true
+  uses-material-design: true
+  assets:
+    - assets/licenses/

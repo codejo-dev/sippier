@@ -1,0 +1,129 @@
+diff --git a/modules/audiounit/audiounit.h b/modules/audiounit/audiounit.h
+--- a/modules/audiounit/audiounit.h
++++ b/modules/audiounit/audiounit.h
+@@ -11,7 +11,13 @@
+ extern AudioComponent audiounit_comp_io;
+ extern AudioComponent audiounit_comp_conv;
+ 
++#if ! TARGET_OS_IPHONE
++#include <CoreAudio/CoreAudio.h>
+ 
++OSStatus audiounit_device(AudioDeviceID *devp, const char *uid, bool input);
++#endif
++
++
+ struct audiosess;
+ struct audiosess_st;
+ struct conv_buf;
+diff --git a/modules/audiounit/audiounit.c b/modules/audiounit/audiounit.c
+--- a/modules/audiounit/audiounit.c
++++ b/modules/audiounit/audiounit.c
+@@ -121,6 +121,53 @@
+ }
+ 
+ 
++#if ! TARGET_OS_IPHONE
++/*
++ * The device with this CoreAudio UID, or the default input or output device
++ * if uid is empty or "default", or the device is gone.
++ */
++OSStatus audiounit_device(AudioDeviceID *devp, const char *uid, bool input)
++{
++	AudioObjectPropertyAddress addr = {
++		input ? kAudioHardwarePropertyDefaultInputDevice :
++			kAudioHardwarePropertyDefaultOutputDevice,
++		kAudioObjectPropertyScopeGlobal,
++		kAudioObjectPropertyElementMain };
++	UInt32 size = sizeof(*devp);
++
++	if (str_isset(uid) && str_casecmp(uid, "default")) {
++		AudioObjectPropertyAddress taddr = {
++			kAudioHardwarePropertyTranslateUIDToDevice,
++			kAudioObjectPropertyScopeGlobal,
++			kAudioObjectPropertyElementMain };
++		CFStringRef cfuid = CFStringCreateWithCString(NULL, uid,
++						kCFStringEncodingUTF8);
++		AudioDeviceID dev = kAudioObjectUnknown;
++		UInt32 dsize = sizeof(dev);
++		OSStatus ret = -1;
++
++		if (cfuid) {
++			ret = AudioObjectGetPropertyData(kAudioObjectSystemObject,
++							 &taddr, sizeof(cfuid),
++							 &cfuid, &dsize, &dev);
++			CFRelease(cfuid);
++		}
++
++		if (ret == noErr && dev != kAudioObjectUnknown) {
++			*devp = dev;
++			return noErr;
++		}
++
++		warning("audiounit: device '%s' not found, using the"
++			" default\n", uid);
++	}
++
++	return AudioObjectGetPropertyData(kAudioObjectSystemObject, &addr,
++					  0, NULL, &size, devp);
++}
++#endif
++
++
+ uint32_t audiounit_aufmt_to_formatflags(enum aufmt fmt)
+ {
+ 	switch (fmt) {
+diff --git a/modules/audiounit/player.c b/modules/audiounit/player.c
+--- a/modules/audiounit/player.c
++++ b/modules/audiounit/player.c
+@@ -153,6 +153,21 @@
+ 		goto out;
+ 	}
+ 
++#if ! TARGET_OS_IPHONE
++	{
++		AudioDeviceID dev;
++
++		ret = audiounit_device(&dev, device, false);
++		if (!ret)
++			ret = AudioUnitSetProperty(st->au,
++					kAudioOutputUnitProperty_CurrentDevice,
++					kAudioUnitScope_Global, 0,
++					&dev, sizeof(dev));
++		if (ret)
++			goto out;
++	}
++#endif
++
+ 	fmt.mSampleRate       = prm->srate;
+ 	fmt.mFormatID         = kAudioFormatLinearPCM;
+ #if TARGET_OS_IPHONE
+diff --git a/modules/audiounit/recorder.c b/modules/audiounit/recorder.c
+--- a/modules/audiounit/recorder.c
++++ b/modules/audiounit/recorder.c
+@@ -191,12 +191,7 @@
+ #if ! TARGET_OS_IPHONE
+ 	const AudioUnitElement outputBus = 0;
+ 	const UInt32 disable = 0;
+-	UInt32 ausize = sizeof(AudioDeviceID);
+ 	AudioDeviceID inputDevice;
+-	AudioObjectPropertyAddress auAddress = {
+-		kAudioHardwarePropertyDefaultInputDevice,
+-		kAudioObjectPropertyScopeGlobal,
+-		kAudioObjectPropertyElementMain };
+ #endif
+ 	Float64 hw_srate = 0.0;
+ 	UInt32 hw_size = sizeof(hw_srate);
+@@ -258,12 +253,7 @@
+ 	if (ret)
+ 		goto out;
+ 
+-	ret = AudioObjectGetPropertyData(kAudioObjectSystemObject,
+-			&auAddress,
+-			0,
+-			NULL,
+-			&ausize,
+-			&inputDevice);
++	ret = audiounit_device(&inputDevice, device, true);
+ 	if (ret)
+ 		goto out;
+ 

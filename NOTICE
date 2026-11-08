@@ -1,0 +1,11 @@
+Sippier
+Copyright 2026 The Sippier Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Builds of the app include third-party software under its own licence:
+- baresip and libre (BSD-3-Clause), https://github.com/baresip
+- libg722 (public domain and BSD-2-Clause), https://github.com/sippy/libg722
+- Opus (BSD-3-Clause), https://opus-codec.org
+- OpenSSL 3 (Apache-2.0), https://www.openssl.org
+- Flutter and Dart packages, see each package's LICENSE

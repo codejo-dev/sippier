@@ -1,0 +1,6 @@
+# flutter gen-l10n (also runs with flutter pub get, build and run).
+# app_en.arb is the template: add new strings there first, then to app_de.arb.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+nullable-getter: false

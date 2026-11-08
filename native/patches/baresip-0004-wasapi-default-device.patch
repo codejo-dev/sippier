@@ -1,0 +1,26 @@
+diff --git a/modules/wasapi/play.c b/modules/wasapi/play.c
+--- a/modules/wasapi/play.c
++++ b/modules/wasapi/play.c
+@@ -82,7 +82,8 @@ static int play_thread(void *arg)
+ 			      &IID_IMMDeviceEnumerator, (void **)&enumerator);
+ 	CHECK_HR(hr, "wasapi/play: CoCreateInstance failed");
+ 
+-	if (pl_strcasecmp(st->device, "default") == 0) {
++	if (!pl_isset(st->device) ||
++	    pl_strcasecmp(st->device, "default") == 0) {
+ 		hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
+ 			enumerator, eRender, eCommunications, &renderer);
+ 		CHECK_HR(hr, "wasapi/play: GetDefaultAudioEndpoint failed");
+diff --git a/modules/wasapi/src.c b/modules/wasapi/src.c
+--- a/modules/wasapi/src.c
++++ b/modules/wasapi/src.c
+@@ -82,7 +82,8 @@ static int src_thread(void *arg)
+ 			      &IID_IMMDeviceEnumerator, (void **)&enumerator);
+ 	CHECK_HR(hr, "wasapi/src: CoCreateInstance failed");
+ 
+-	if (pl_strcasecmp(st->device, "default") == 0) {
++	if (!pl_isset(st->device) ||
++	    pl_strcasecmp(st->device, "default") == 0) {
+ 		hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
+ 			enumerator, eCapture, eCommunications, &capturer);
+ 		CHECK_HR(hr, "wasapi/src: GetDefaultAudioEndpoint failed");
