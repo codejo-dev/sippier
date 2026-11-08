@@ -106,6 +106,19 @@ class PlatformBridge {
   /// Android: ends the process after the core has shut down.
   Future<void> quit() => _invoke('quit');
 
+  /// Opens a web page in the default browser.
+  Future<void> openUrl(String url) => _invoke('openUrl', url);
+
+  /// macOS 13+ and Windows: whether Sippier starts when the user logs in,
+  /// as the system has it (the user can change it there too). Null where
+  /// that's not up to the app.
+  Future<bool?> launchAtLogin() => _invoke<bool>('launchAtLogin');
+
+  /// Returns whether Sippier now starts at login. macOS may want the user to
+  /// allow it in System Settings first, and opens them.
+  Future<bool?> setLaunchAtLogin(bool on) =>
+      _invoke<bool>('setLaunchAtLogin', on);
+
   /// Android 13+: the language picked in the settings ("de"), or null for
   /// the system's, as the app's language, so the notifications follow it.
   /// Desktop runners get their strings with [updateStatus].

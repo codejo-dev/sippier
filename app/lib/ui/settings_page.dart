@@ -7,10 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../phone/phone_state.dart';
 import '../providers.dart';
+import 'about_page.dart';
 import 'audio_settings_section.dart';
 
 class SettingsPage extends ConsumerWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.showAbout = false});
+
+  /// A way to the About page, on phones; the rail has its own.
+  final bool showAbout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,6 +26,7 @@ class SettingsPage extends ConsumerWidget {
         children: [
           _Header(l.headerGeneral),
           const _LanguageField(),
+          const _LaunchAtLoginSwitch(),
           _Header(l.headerAudio),
           if (Platform.isAndroid)
             ListTile(
@@ -56,19 +61,75 @@ class SettingsPage extends ConsumerWidget {
               context,
             ).push(MaterialPageRoute<void>(builder: (_) => const LogPage())),
           ),
-          _Header(l.headerAbout),
-          ListTile(
-            title: Text(l.licences),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showLicensePage(
-              context: context,
-              applicationName: 'Sippier',
-              applicationLegalese:
-                  'Copyright 2026 The Sippier Authors\nApache License 2.0',
+          if (showAbout) ...[
+            _Header(l.navAbout),
+            ListTile(
+              title: Text(l.aboutSippier),
+              subtitle: Text(l.aboutSippierHint),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const AboutPage()),
+              ),
             ),
-          ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// macOS 13+ and Windows: starting at login, in the menu bar or tray. The
+/// system keeps the setting, and the user can change it there too, so it's
+/// read again whenever Sippier comes back to the front.
+class _LaunchAtLoginSwitch extends ConsumerStatefulWidget {
+  const _LaunchAtLoginSwitch();
+
+  @override
+  ConsumerState<_LaunchAtLoginSwitch> createState() =>
+      _LaunchAtLoginSwitchState();
+}
+
+class _LaunchAtLoginSwitchState extends ConsumerState<_LaunchAtLoginSwitch> {
+  /// Null where it's not up to the app (Android, macOS 12).
+  bool? _on;
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _read);
+    _read();
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  Future<void> _read() async {
+    final on = await ref.read(platformProvider).launchAtLogin();
+    if (mounted && on != _on) setState(() => _on = on);
+  }
+
+  Future<void> _set(bool on) async {
+    setState(() => _on = on);
+    final now = await ref.read(platformProvider).setLaunchAtLogin(on);
+    if (mounted) setState(() => _on = now);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final on = _on;
+    if (on == null) return const SizedBox.shrink();
+    final l = AppLocalizations.of(context);
+    return SwitchListTile(
+      title: Text(l.launchAtLogin),
+      subtitle: Text(
+        Platform.isMacOS ? l.launchAtLoginMenuBar : l.launchAtLoginTray,
+      ),
+      value: on,
+      onChanged: _set,
     );
   }
 }

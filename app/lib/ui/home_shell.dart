@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers.dart';
+import 'about_page.dart';
 import 'accounts_page.dart';
 import 'call_screen.dart';
 import 'dialer_page.dart';
@@ -12,8 +13,9 @@ import 'recents_page.dart';
 import 'settings_page.dart';
 
 /// Tabs (keypad, recents, accounts, settings), replaced by the call screen
-/// while there are calls. Phones have them in a bottom bar; wider windows
-/// in a rail on the left, with settings at its foot.
+/// while there are calls. Phones have them in a bottom bar, and About in
+/// the settings; wider windows in a rail on the left, with settings and
+/// About at its foot.
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -24,6 +26,7 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> {
   static const _accountsTab = 2;
   static const _settingsTab = 3;
+  static const _aboutTab = 4;
   int _tab = 0;
   bool _lockScreenAllowed = true;
   bool _backgroundRestricted = false;
@@ -87,17 +90,21 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
     if (hasCalls) return const CallScreen();
 
+    final phone = MediaQuery.sizeOf(context).width < 640;
     final pages = [
       DialerPage(onAddAccount: () => setState(() => _tab = _accountsTab)),
       const RecentsPage(),
       const AccountsPage(),
-      const SettingsPage(),
+      SettingsPage(showAbout: phone),
+      // Built when it's opened, so its licences load only then
+      if (_tab == _aboutTab) const AboutPage() else const SizedBox.shrink(),
     ];
     final destinations = [
       (Icons.dialpad, l.navKeypad),
       (Icons.history, l.navRecents),
       (Icons.account_circle_outlined, l.navAccounts),
       (Icons.settings_outlined, l.navSettings),
+      (Icons.info_outline, l.navAbout),
     ];
     Widget body = IndexedStack(index: _tab, children: pages);
     final stayAwake = ref.watch(stayAwakeProvider);
@@ -152,20 +159,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       );
     }
 
-    if (MediaQuery.sizeOf(context).width < 640) {
+    if (phone) {
       return Scaffold(
         body: body,
         bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab,
+          // About (open when the window became narrow) is part of settings
+          selectedIndex: _tab < _aboutTab ? _tab : _settingsTab,
           onDestinationSelected: (i) => setState(() => _tab = i),
           destinations: [
-            for (final (icon, label) in destinations)
+            for (final (icon, label) in destinations.take(_aboutTab))
               NavigationDestination(icon: Icon(icon), label: label),
           ],
         ),
       );
     }
-    final (settingsIcon, settingsLabel) = destinations[_settingsTab];
     return Scaffold(
       body: Row(
         children: [
@@ -177,11 +184,20 @@ class _HomeShellState extends ConsumerState<HomeShell> {
               for (final (icon, label) in destinations.take(_settingsTab))
                 NavigationRailDestination(icon: Icon(icon), label: Text(label)),
             ],
-            trailing: _RailButton(
-              icon: settingsIcon,
-              label: settingsLabel,
-              selected: _tab == _settingsTab,
-              onTap: () => setState(() => _tab = _settingsTab),
+            trailing: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final tab in [_settingsTab, _aboutTab])
+                    _RailButton(
+                      icon: destinations[tab].$1,
+                      label: destinations[tab].$2,
+                      selected: _tab == tab,
+                      onTap: () => setState(() => _tab = tab),
+                    ),
+                ],
+              ),
             ),
             trailingAtBottom: true,
           ),
@@ -193,8 +209,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
-/// A destination at the rail's foot (settings), drawn like the rail's own:
-/// the icon in a pill that fills when selected, the label underneath.
+/// A destination at the rail's foot (settings, About), drawn like the
+/// rail's own: the icon in a pill that fills when selected, the label
+/// underneath.
 class _RailButton extends StatelessWidget {
   const _RailButton({
     required this.icon,
@@ -212,8 +229,9 @@ class _RailButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final style = Theme.of(context).textTheme.labelMedium;
+    // The rail's own destinations' spacing
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Semantics(
         button: true,
         selected: selected,

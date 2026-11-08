@@ -7,6 +7,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,6 +18,7 @@ import android.media.RingtoneManager
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.LocaleList
@@ -88,6 +90,7 @@ class PlatformChannel(private val context: Context, messenger: BinaryMessenger) 
                 }
                 "quit" -> { quit(); result.success(null) }
                 "setLanguage" -> { setLanguage(call.arguments as String?); result.success(null) }
+                "openUrl" -> { openUrl(call.arguments as String); result.success(null) }
                 else -> result.notImplemented()
             }
         }
@@ -353,6 +356,16 @@ class PlatformChannel(private val context: Context, messenger: BinaryMessenger) 
     }
 
     /** The incoming-call channel's settings, where the user picks its sound. */
+    private fun openUrl(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        try {
+            (activity ?: context).startActivity(
+                if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else intent)
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "No app opens $url")
+        }
+    }
+
     private fun openRingtoneSettings() {
         val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
             .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)

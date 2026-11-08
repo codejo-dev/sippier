@@ -21,6 +21,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navSettings => 'Einstellungen';
 
   @override
+  String get navAbout => 'Über';
+
+  @override
   String get bannerBatteryRestricted =>
       'Die Akkunutzung ist auf „Eingeschränkt“ gesetzt, daher kann Sippier im Hintergrund keine Anrufe empfangen. Stelle sie unter „App-Akkunutzung“ auf „Optimiert“ oder „Nicht eingeschränkt“.';
 
@@ -60,6 +63,17 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get languageName => 'Deutsch';
+
+  @override
+  String get launchAtLogin => 'Beim Anmelden öffnen';
+
+  @override
+  String get launchAtLoginMenuBar =>
+      'Startet in der Menüleiste, bereit für Anrufe';
+
+  @override
+  String get launchAtLoginTray =>
+      'Startet im Infobereich der Taskleiste, bereit für Anrufe';
 
   @override
   String get headerAudio => 'Audio';
@@ -125,10 +139,41 @@ class AppLocalizationsDe extends AppLocalizations {
   String get copyLogPath => 'Pfad der Protokolldatei kopieren';
 
   @override
-  String get headerAbout => 'Über';
+  String get licences => 'Open-Source-Lizenzen';
 
   @override
-  String get licences => 'Open-Source-Lizenzen';
+  String licenceCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Lizenzen',
+      one: '1 Lizenz',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get aboutSippier => 'Über Sippier';
+
+  @override
+  String get aboutSippierHint => 'Version, Autor, Website und Lizenzen';
+
+  @override
+  String aboutVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
+  String get aboutTagline => 'Ein einfaches Open-Source-SIP-Telefon.';
+
+  @override
+  String get aboutAuthor => 'Autor';
+
+  @override
+  String get aboutWebsite => 'Website';
+
+  @override
+  String get aboutLicence => 'Lizenz';
 
   @override
   String get addAccount => 'Konto hinzufügen';

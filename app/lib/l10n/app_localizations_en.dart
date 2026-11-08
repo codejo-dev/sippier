@@ -21,6 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navSettings => 'Settings';
 
   @override
+  String get navAbout => 'About';
+
+  @override
   String get bannerBatteryRestricted =>
       'Battery usage is set to Restricted, so Sippier can\'t receive calls in the background. Set it to Optimized or Unrestricted under App battery usage.';
 
@@ -60,6 +63,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageName => 'English';
+
+  @override
+  String get launchAtLogin => 'Open at login';
+
+  @override
+  String get launchAtLoginMenuBar => 'Starts in the menu bar, ready for calls';
+
+  @override
+  String get launchAtLoginTray =>
+      'Starts in the notification area, ready for calls';
 
   @override
   String get headerAudio => 'Audio';
@@ -124,10 +137,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyLogPath => 'Copy log file path';
 
   @override
-  String get headerAbout => 'About';
+  String get licences => 'Open-source licences';
 
   @override
-  String get licences => 'Open-source licences';
+  String licenceCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count licences',
+      one: '1 licence',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get aboutSippier => 'About Sippier';
+
+  @override
+  String get aboutSippierHint => 'Version, author, website and licences';
+
+  @override
+  String aboutVersion(String version) {
+    return 'Version $version';
+  }
+
+  @override
+  String get aboutTagline => 'A simple, open-source SIP phone.';
+
+  @override
+  String get aboutAuthor => 'Author';
+
+  @override
+  String get aboutWebsite => 'Website';
+
+  @override
+  String get aboutLicence => 'Licence';
 
   @override
   String get addAccount => 'Add account';

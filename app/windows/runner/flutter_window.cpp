@@ -37,6 +37,45 @@ T Arg(const flutter::EncodableMap& args, const char* key, T fallback) {
   return value ? *value : fallback;
 }
 
+// Starting at login: a value in the user's Run key. Task Manager's Startup
+// apps turns it off by marking it in StartupApproved instead (an odd first
+// byte).
+constexpr wchar_t kRunKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+constexpr wchar_t kStartupApprovedKey[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved"
+    L"\\Run";
+constexpr wchar_t kRunValue[] = L"Sippier";
+
+bool LaunchesAtLogin() {
+  if (RegGetValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, RRF_RT_ANY, nullptr,
+                   nullptr, nullptr) != ERROR_SUCCESS) {
+    return false;
+  }
+  BYTE approved[64];
+  DWORD size = sizeof(approved);
+  return RegGetValueW(HKEY_CURRENT_USER, kStartupApprovedKey, kRunValue,
+                      RRF_RT_REG_BINARY, nullptr, approved,
+                      &size) != ERROR_SUCCESS ||
+         size == 0 || (approved[0] & 1) == 0;
+}
+
+// Runs this executable with --login, which keeps the window hidden.
+void SetLaunchAtLogin(bool on) {
+  if (on) {
+    wchar_t exe[MAX_PATH];
+    DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    std::wstring command = L"\"" + std::wstring(exe, n) + L"\" --login";
+    RegSetKeyValueW(HKEY_CURRENT_USER, kRunKey, kRunValue, REG_SZ,
+                    command.c_str(),
+                    static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)));
+  } else {
+    RegDeleteKeyValueW(HKEY_CURRENT_USER, kRunKey, kRunValue);
+  }
+  // Else turning it off in Task Manager would outlast turning it on here
+  RegDeleteKeyValueW(HKEY_CURRENT_USER, kStartupApprovedKey, kRunValue);
+}
+
 // An icon from the resources at the size for the window's DPI.
 HICON LoadIconForDpi(HWND hwnd, int id, int metric) {
   int size = GetSystemMetricsForDpi(metric, GetDpiForWindow(hwnd));
@@ -75,9 +114,11 @@ bool FlutterWindow::OnCreate() {
   taskbar_created_ = RegisterWindowMessageW(L"TaskbarCreated");
   AddTrayIcon();
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
-  });
+  if (!start_hidden_) {
+    flutter_controller_->engine()->SetNextFrameCallback([&]() {
+      this->Show();
+    });
+  }
 
   // Flutter can complete the first frame before the "show window" callback is
   // registered. The following call ensures a frame is pending to ensure the
@@ -141,6 +182,19 @@ void FlutterWindow::SetUpChannel() {
             UpdateTrayIcon();
           }
           result->Success();
+        } else if (method == "openUrl") {
+          const auto* url = std::get_if<std::string>(call.arguments());
+          if (url) {
+            ShellExecuteW(nullptr, L"open", Utf16FromUtf8(*url).c_str(),
+                          nullptr, nullptr, SW_SHOWNORMAL);
+          }
+          result->Success();
+        } else if (method == "launchAtLogin") {
+          result->Success(flutter::EncodableValue(LaunchesAtLogin()));
+        } else if (method == "setLaunchAtLogin") {
+          const auto* on = std::get_if<bool>(call.arguments());
+          SetLaunchAtLogin(on && *on);
+          result->Success(flutter::EncodableValue(LaunchesAtLogin()));
         } else {
           result->NotImplemented();
         }

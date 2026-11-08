@@ -2,6 +2,8 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include <algorithm>
+
 #include "flutter_window.h"
 #include "utils.h"
 
@@ -21,10 +23,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
+  // From the Run key (see SetLaunchAtLogin in flutter_window.cpp)
+  bool at_login = std::find(command_line_arguments.begin(),
+                            command_line_arguments.end(),
+                            "--login") != command_line_arguments.end();
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
   FlutterWindow window(project);
+  if (at_login) {
+    window.StartHidden();
+  }
   Win32Window::Point origin(10, 10);
   // the size of the macOS window
   Win32Window::Size size(800, 600);

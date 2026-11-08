@@ -49,7 +49,14 @@ public static extern void CredFree(IntPtr buffer);
     }
   }
 
-  if (-not $paths -and -not $credentials) {
+  # Starting at login, which the app turns on in its settings; Task Manager
+  # keeps whether it's allowed in StartupApproved
+  $startup = @(
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run',
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+  ) | Where-Object { Get-ItemProperty $_ -Name Sippier -ErrorAction SilentlyContinue }
+
+  if (-not $paths -and -not $credentials -and -not $startup) {
     Write-Host "Sippier isn't installed"
     return
   }
@@ -63,6 +70,9 @@ public static extern void CredFree(IntPtr buffer);
 
   foreach ($credential in $credentials) {
     [void][Sippier.Credentials]::CredDeleteW($credential.Name, $credential.Type, 0)
+  }
+  foreach ($key in $startup) {
+    Remove-ItemProperty $key -Name Sippier
   }
   foreach ($path in $paths) {
     Remove-Item $path -Recurse -Force

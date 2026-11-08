@@ -15,6 +15,7 @@ import 'package:sippier/l10n/app_localizations.dart';
 import 'package:sippier/phone/phone_controller.dart';
 import 'package:sippier/phone/phone_state.dart';
 import 'package:sippier/providers.dart';
+import 'package:sippier/ui/about_page.dart';
 import 'package:sippier/ui/account_form.dart';
 import 'package:sippier/ui/home_shell.dart';
 import 'package:sippier/ui/theme.dart';
@@ -175,7 +176,13 @@ Future<void> _screen(
   await tester.pump();
   if (tab > 0) {
     final l = lookupAppLocalizations(locale);
-    final labels = [l.navKeypad, l.navRecents, l.navAccounts, l.navSettings];
+    final labels = [
+      l.navKeypad,
+      l.navRecents,
+      l.navAccounts,
+      l.navSettings,
+      l.navAbout,
+    ];
     await tester.tap(find.text(labels[tab]).last);
     // the rail's selection moves with an animation, which starts with the
     // first frame
@@ -275,6 +282,20 @@ void _screens(Locale locale) {
         const HomeShell(),
         tab: 3,
       ),
+    );
+    // The rail's foot on desktop; on phones it opens from the settings
+    testWidgets(
+      'about ($sizeName)',
+      (t) => sizeName == 'phone'
+          ? screen(t, 'about-$sizeName', size, _accounts, const AboutPage())
+          : screen(
+              t,
+              'about-$sizeName',
+              size,
+              _accounts,
+              const HomeShell(),
+              tab: 4,
+            ),
     );
     testWidgets(
       'account form ($sizeName)',

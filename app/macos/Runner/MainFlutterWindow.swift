@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import ServiceManagement
 
 class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private var statusItem: NSStatusItem?
@@ -40,6 +41,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         self?.setWaitingForCalls(
           (args["background"] as? Bool ?? false) || (args["inCall"] as? Bool ?? false))
         result(nil)
+      case "openUrl":
+        if let url = URL(string: call.arguments as? String ?? "") {
+          NSWorkspace.shared.open(url)
+        }
+        result(nil)
+      case "launchAtLogin":
+        result(Self.launchAtLogin())
+      case "setLaunchAtLogin":
+        result(Self.setLaunchAtLogin(call.arguments as? Bool ?? false))
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -48,7 +58,51 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     delegate = self
     setUpStatusItem()
 
+    // The window isn't visible at launch (MainMenu.xib): it opens once the
+    // app has launched, unless that was at login, where Sippier starts in
+    // the menu bar. Only the launch's own event says so.
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: nil
+    ) { [weak self] _ in
+      let event = NSAppleEventManager.shared().currentAppleEvent
+      let atLogin =
+        event?.eventID == kAEOpenApplication
+        && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue
+          == keyAELaunchedAsLogInItem
+      if atLogin {
+        NSApp.setActivationPolicy(.accessory)
+      } else {
+        self?.showWindow()
+      }
+    }
+
     super.awakeFromNib()
+  }
+
+  /// Nil before macOS 13, whose login items the app can't set on its own.
+  private static func launchAtLogin() -> Bool? {
+    guard #available(macOS 13, *) else { return nil }
+    return SMAppService.mainApp.status == .enabled
+  }
+
+  private static func setLaunchAtLogin(_ on: Bool) -> Bool? {
+    guard #available(macOS 13, *) else { return nil }
+    let service = SMAppService.mainApp
+    do {
+      if on {
+        try service.register()
+      } else {
+        try service.unregister()
+      }
+    } catch {
+      NSLog("Sippier: login item: \(error)")
+    }
+    // Turned off under Login Items in System Settings: only the user can
+    // turn it back on there
+    if on, service.status == .requiresApproval {
+      SMAppService.openSystemSettingsLoginItems()
+    }
+    return service.status == .enabled
   }
 
   func showWindow() {

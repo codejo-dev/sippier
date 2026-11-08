@@ -23,6 +23,9 @@ class FlutterWindow : public Win32Window {
   explicit FlutterWindow(const flutter::DartProject& project);
   virtual ~FlutterWindow();
 
+  // Started at login: stay in the tray instead of showing the window.
+  void StartHidden() { start_hidden_ = true; }
+
  protected:
   // Win32Window:
   bool OnCreate() override;
@@ -58,6 +61,8 @@ class FlutterWindow : public Win32Window {
 
   // Set by Quit, so WM_CLOSE closes instead of hiding.
   bool quitting_ = false;
+
+  bool start_hidden_ = false;
 
   // Sent to top-level windows when Explorer (and its taskbar) restarts.
   UINT taskbar_created_ = 0;

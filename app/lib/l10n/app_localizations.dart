@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get navSettings;
 
+  /// Rail destination and page with the version, author, website and licences
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get navAbout;
+
   /// Android. Restricted, Optimized, Unrestricted and App battery usage are Android's own setting names.
   ///
   /// In en, this message translates to:
@@ -193,6 +199,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'English'**
   String get languageName;
+
+  /// macOS and Windows: start Sippier when the user logs in
+  ///
+  /// In en, this message translates to:
+  /// **'Open at login'**
+  String get launchAtLogin;
+
+  /// No description provided for @launchAtLoginMenuBar.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts in the menu bar, ready for calls'**
+  String get launchAtLoginMenuBar;
+
+  /// No description provided for @launchAtLoginTray.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts in the notification area, ready for calls'**
+  String get launchAtLoginTray;
 
   /// No description provided for @headerAudio.
   ///
@@ -296,17 +320,59 @@ abstract class AppLocalizations {
   /// **'Copy log file path'**
   String get copyLogPath;
 
-  /// No description provided for @headerAbout.
-  ///
-  /// In en, this message translates to:
-  /// **'About'**
-  String get headerAbout;
-
   /// No description provided for @licences.
   ///
   /// In en, this message translates to:
   /// **'Open-source licences'**
   String get licences;
+
+  /// No description provided for @licenceCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 licence} other{{count} licences}}'**
+  String licenceCount(int count);
+
+  /// No description provided for @aboutSippier.
+  ///
+  /// In en, this message translates to:
+  /// **'About Sippier'**
+  String get aboutSippier;
+
+  /// No description provided for @aboutSippierHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Version, author, website and licences'**
+  String get aboutSippierHint;
+
+  /// No description provided for @aboutVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version}'**
+  String aboutVersion(String version);
+
+  /// No description provided for @aboutTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'A simple, open-source SIP phone.'**
+  String get aboutTagline;
+
+  /// No description provided for @aboutAuthor.
+  ///
+  /// In en, this message translates to:
+  /// **'Author'**
+  String get aboutAuthor;
+
+  /// No description provided for @aboutWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Website'**
+  String get aboutWebsite;
+
+  /// No description provided for @aboutLicence.
+  ///
+  /// In en, this message translates to:
+  /// **'Licence'**
+  String get aboutLicence;
 
   /// No description provided for @addAccount.
   ///
