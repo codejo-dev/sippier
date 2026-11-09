@@ -13,16 +13,19 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     title: "Quit Sippier", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
   override func awakeFromNib() {
-    let flutterViewController = FlutterViewController()
+    // Our own engine, which runs from launch on (see the end): a view
+    // controller's own starts only once its window first appears, so
+    // started at login, with the window hidden, the phone wouldn't run.
+    let engine = FlutterEngine(name: "sippier", project: nil, allowHeadlessExecution: true)
+    RegisterGeneratedPlugins(registry: engine)
+    let flutterViewController = FlutterViewController(engine: engine, nibName: nil, bundle: nil)
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
-    RegisterGeneratedPlugins(registry: flutterViewController)
-
     let channel = FlutterMethodChannel(
       name: "sippier/platform",
-      binaryMessenger: flutterViewController.engine.binaryMessenger)
+      binaryMessenger: engine.binaryMessenger)
     channel.setMethodCallHandler { [weak self] call, result in
       switch call.method {
       case "startRinging":
@@ -75,6 +78,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         self?.showWindow()
       }
     }
+
+    // With the plugins and the channel in place
+    engine.run(withEntrypoint: nil)
 
     super.awakeFromNib()
   }

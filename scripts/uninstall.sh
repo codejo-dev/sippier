@@ -15,9 +15,12 @@ main() {
   set -euo pipefail
 
   local id=dev.codejo.sippier
+  # Everything Sippier writes is in its container's Data. macOS keeps the
+  # container folder itself, with its metadata, out of a script's reach.
   local container=$HOME/Library/Containers/$id
+  local data=$container/Data
   local scripts="$HOME/Library/Application Scripts/$id"
-  local accounts="$container/Data/Library/Application Support/$id/accounts.json"
+  local accounts="$data/Library/Application Support/$id/accounts.json"
   local access="macOS didn't give your terminal access to Sippier's data. Allow it when asked, or turn on Full Disk Access for your terminal app in System Settings > Privacy & Security, then run this again."
 
   [[ $(uname -s) == Darwin ]] ||
@@ -27,7 +30,7 @@ main() {
   for app in /Applications/Sippier.app "$HOME/Applications/Sippier.app"; do
     if [[ $(bundle_id "$app") == "$id" ]]; then apps=$((apps + 1)); fi
   done
-  if [[ $apps == 0 && ! -e $container && ! -e $scripts ]]; then
+  if [[ $apps == 0 && ! -e $data && ! -e $scripts ]]; then
     echo "Sippier isn't installed"
     return
   fi
@@ -68,8 +71,10 @@ main() {
   # Microphone and any other privacy permission
   tccutil reset All "$id" >/dev/null 2>&1 || true
 
-  if [[ -e $container || -e $scripts ]]; then
-    rm -rf "$container" "$scripts" 2>/dev/null || die "$access"
+  if [[ -e $data || -e $scripts ]]; then
+    # Fails on the container's metadata, which may stay
+    rm -rf "$container" "$scripts" 2>/dev/null || true
+    [[ ! -e $data && ! -e $scripts ]] || die "$access"
     echo "Removed Sippier's accounts, settings, call history and log"
   fi
 

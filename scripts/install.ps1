@@ -19,10 +19,16 @@
   $repo = 'codejo-dev/sippier'
   $api = "https://api.github.com/repos/$repo"
 
-  $arch = switch ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
-    'Arm64' { 'arm64' }
-    'X64' { 'x64' }
-    default { throw "Sippier needs 64-bit Windows (x64 or Arm64), not $_" }
+  # The system's own architecture, as Windows records it: the same from any
+  # PowerShell, 32-bit or emulated ones included, which .NET's
+  # RuntimeInformation.OSArchitecture isn't
+  $native = (Get-ItemProperty `
+      'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' `
+      -Name PROCESSOR_ARCHITECTURE).PROCESSOR_ARCHITECTURE
+  $arch = switch ($native) {
+    'ARM64' { 'arm64' }
+    'AMD64' { 'x64' }
+    default { throw "Sippier needs 64-bit Windows (x64 or Arm64), not '$native'" }
   }
   $asset = "Sippier-windows-$arch.zip"
 
