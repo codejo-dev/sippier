@@ -146,13 +146,16 @@ else
   ECHO_CANCEL=no
 fi
 
-# Downloads a release tarball once (checksum verified), extracts it into $SRC
+# Downloads a release tarball once (checksum verified), extracts it into $SRC.
+# Download servers fail now and then (a 504, a dropped TLS connection), and
+# release builds download everything afresh, so it tries again.
 fetch() {
   local url=$1 sha=$2
   local tarball="$ROOT/build/downloads/${url##*/}"
   if [[ ! -f $tarball ]]; then
     mkdir -p "${tarball%/*}"
-    curl -fsSL "$url" -o "$tarball.$$"
+    curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+      --connect-timeout 30 "$url" -o "$tarball.$$"
     if ! echo "$sha  $tarball.$$" | shasum -a 256 -c --status; then
       rm -f "$tarball.$$"
       echo "checksum mismatch: $url" >&2
