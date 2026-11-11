@@ -20,6 +20,7 @@ endforeach()
 add_library(sippier_core SHARED
   src/sippier_core.c
   src/devices.c
+  src/netwatch.c
   src/power.c
   src/ringtone.c)
 
@@ -79,12 +80,13 @@ elseif(APPLE)
     "-framework CoreAudio"
     "-framework AudioToolbox"
     "-framework AudioUnit"
-    "-framework IOKit")
+    "-framework IOKit"
+    "-framework Network")
   set_target_properties(sippier_core PROPERTIES
     INSTALL_NAME_DIR "@rpath")
 elseif(WIN32)
-  # baresip's wasapi module and Windows parts, OpenSSL, devices.c, power.c
-  # and the CA export
+  # baresip's wasapi module and Windows parts, OpenSSL, devices.c, power.c,
+  # netwatch.c and the CA export
   target_link_libraries(sippier_core PRIVATE
     ole32 oleaut32 uuid winmm avrt ksuser
     crypt32 ws2_32 iphlpapi dbghelp powrprof)

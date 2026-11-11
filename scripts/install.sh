@@ -10,7 +10,7 @@
 #
 # Environment:
 #   SIPPIER_VERSION  the release to install, e.g. v0.2.0 (default: newest)
-#   GITHUB_TOKEN     for GitHub's API, against its rate limit (default: `gh auth token`)
+#   GITHUB_TOKEN     optional: sent to GitHub's API, against its rate limit
 #
 # Everything is in main, so a partial download through the pipe runs nothing.
 
@@ -27,10 +27,9 @@ main() {
   [[ $(sysctl -n hw.optional.arm64 2>/dev/null) == 1 ]] ||
     die "Sippier needs a Mac with Apple silicon"
 
+  # The repository is public, so no token is needed: a stale one (from gh,
+  # say) would only make GitHub refuse
   local token=${GITHUB_TOKEN:-}
-  if [[ -z $token ]] && command -v gh >/dev/null; then
-    token=$(gh auth token 2>/dev/null || true)
-  fi
   auth=()
   if [[ -n $token ]]; then auth=(-H "Authorization: Bearer $token"); fi
 

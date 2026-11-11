@@ -11,6 +11,7 @@
 #include <baresip.h>
 #include "sippier_core.h"
 #include "devices.h"
+#include "netwatch.h"
 #include "power.h"
 #include "ringtone.h"
 #ifdef SIPPIER_AEC
@@ -37,6 +38,8 @@
 #define SLEEP_WAIT_MS 3000   /* for unregisters to be confirmed */
 #define WAKE_RETRY_MS 3000   /* the network can take a while after wake */
 #define WAKE_TRIES    10
+/* Wi-Fi, its addresses and DNS servers come one after the other */
+#define NETWORK_SETTLE_MS 2000
 /* Android battery saver (sc_keepalive) */
 #define KEEPALIVE_MIN_MS  30000
 #define KEEPALIVE_MAX_MS  (15 * 60000)
@@ -48,8 +51,8 @@
 #define NAT_KEEPALIVE_SAVER_MS  60000
 
 /* mqueue ids: the system's default input or output device changed; the
- * system is about to sleep, or woke up */
-enum { MQ_DEFAULT_IN = 1, MQ_DEFAULT_OUT, MQ_SLEEP, MQ_WAKE };
+ * system is about to sleep, or woke up; its network changed */
+enum { MQ_DEFAULT_IN = 1, MQ_DEFAULT_OUT, MQ_SLEEP, MQ_WAKE, MQ_NETWORK };
 
 #if defined(__ANDROID__)
 #define AUDIO_MODULE "aaudio"
@@ -118,9 +121,13 @@ static struct {
 	struct tmr sleep_tmr;
 	struct tmr wake_tmr;
 	struct tmr nat_tmr;
+	struct tmr net_tmr;
 	void *sleep_ack;
 	unsigned sleep_polls;
 	unsigned wake_tries;
+	/* the local addresses the SIP transports are bound to
+	 * (address_signature) */
+	uint32_t net_sig;
 	struct play *key_tone;
 	struct play *ring;
 	struct mqueue *mq;
@@ -714,6 +721,105 @@ static void wake(void)
 }
 
 
+static bool add_laddr(const char *ifname, const struct sa *sa, void *arg)
+{
+	struct network *net = arg;
+
+	if (net_ifaddr_filter(net, ifname, sa))
+		(void)net_add_address_ifname(net, sa, ifname);
+
+	return false;
+}
+
+
+struct addr_sum {
+	struct network *net;
+	uint32_t sum;
+};
+
+
+static bool sum_laddr(const char *ifname, const struct sa *sa, void *arg)
+{
+	struct addr_sum *s = arg;
+	char buf[96];
+	uint32_t h = 2166136261u;  /* FNV-1a */
+	int n;
+
+	if (!net_ifaddr_filter(s->net, ifname, sa))
+		return false;
+
+	n = re_snprintf(buf, sizeof(buf), "%s %j", ifname, sa);
+	for (int i = 0; i < n; i++)
+		h = (h ^ (uint8_t)buf[i]) * 16777619u;
+	s->sum += h;
+
+	return false;
+}
+
+
+/* The system's local addresses that add_laddr would take, in any order */
+static uint32_t address_signature(struct network *net)
+{
+	struct addr_sum s = { net, 0 };
+
+	net_if_apply(sum_laddr, &s);
+
+	return s.sum;
+}
+
+
+/*
+ * Local addresses come and go (Wi-Fi and mobile data, IPv6 privacy
+ * addresses), and the SIP sockets stay bound to the old ones: sends then
+ * fail with "Cannot assign requested address". Collects the addresses
+ * again, rebinds the transports, moves running calls (re-INVITE) and
+ * registers the enabled accounts again. baresip's own re-register would
+ * also take disabled accounts and ones stopped after an auth failure.
+ */
+static int reset_network(void)
+{
+	struct network *net = baresip_network();
+	int err;
+
+	net_flush_addresses(net);
+	net_if_apply(add_laddr, net);
+	g.net_sig = address_signature(net);
+	err = uag_reset_transp(false, true);
+
+	for (int i = 0; i < MAX_ACCOUNTS; i++) {
+		if (g.enabled[i] && g.uas[i])
+			(void)ua_register(g.uas[i]);
+	}
+
+	return err;
+}
+
+
+/*
+ * The system's network changed (netwatch.c), a moment ago. The DNS servers
+ * are the system's, so read them again. New addresses need new transports
+ * and registrations; with the same ones (the watcher's first report, a
+ * change elsewhere) only failed registrations start over, as a second
+ * REGISTER while one waits gets Vodafone's 491. Registrations that fail
+ * while the network settles start over for a while, as after wake.
+ */
+static void network_settled(void *arg)
+{
+	struct network *net = baresip_network();
+	bool reset = address_signature(net) != g.net_sig;
+	(void)arg;
+
+	net_dns_refresh(net);
+	if (reset) {
+		(void)reset_network();
+		info("sippier: network changed, SIP transports reset\n");
+	}
+
+	g.wake_tries = 1;
+	tmr_start(&g.wake_tmr, reset ? WAKE_RETRY_MS : 0, wake_register, NULL);
+}
+
+
 /* A device that follows the system default moves to the new default */
 static void mqueue_handler(int id, void *data, void *arg)
 {
@@ -727,6 +833,16 @@ static void mqueue_handler(int id, void *data, void *arg)
 		prepare_sleep(data);
 	else if (id == MQ_WAKE)
 		wake();
+	else if (id == MQ_NETWORK)
+		tmr_start(&g.net_tmr, NETWORK_SETTLE_MS, network_settled, NULL);
+}
+
+
+/* On a system thread (netwatch.c) */
+static void network_changed(void)
+{
+	if (g.mq)
+		(void)mqueue_push(g.mq, MQ_NETWORK, NULL);
 }
 
 
@@ -846,6 +962,10 @@ static void *re_thread_main(void *arg)
 		warning("sippier: can't watch the default audio devices\n");
 	if (power_watch(power_changed))
 		warning("sippier: can't watch system sleep\n");
+	/* the addresses baresip_init bound to */
+	g.net_sig = address_signature(baresip_network());
+	if (netwatch_start(network_changed))
+		warning("sippier: can't watch the network\n");
 
 	g.running = true;
 	tmr_start(&g.nat_tmr, NAT_KEEPALIVE_MS, nat_keepalive, NULL);
@@ -862,6 +982,7 @@ static void *re_thread_main(void *arg)
 	tmr_cancel(&g.sleep_tmr);
 	tmr_cancel(&g.wake_tmr);
 	tmr_cancel(&g.nat_tmr);
+	tmr_cancel(&g.net_tmr);
 	if (g.sleep_ack) {
 		power_sleep_ok(g.sleep_ack);
 		g.sleep_ack = NULL;
@@ -874,6 +995,7 @@ static void *re_thread_main(void *arg)
 		signal_init_done(err);
 
 	devices_unwatch();
+	netwatch_stop();
 	power_unwatch();
 	{
 		struct mqueue *mq = g.mq;
@@ -1509,45 +1631,16 @@ int sc_account_expires(int acc)
 }
 
 
-static bool add_laddr(const char *ifname, const struct sa *sa, void *arg)
-{
-	struct network *net = arg;
-
-	if (net_ifaddr_filter(net, ifname, sa))
-		(void)net_add_address_ifname(net, sa, ifname);
-
-	return false;
-}
-
-
-/*
- * Local addresses come and go (Wi-Fi and mobile data, IPv6 privacy
- * addresses), and the SIP sockets stay bound to the old ones: sends then
- * fail with "Cannot assign requested address". Collects the addresses
- * again, rebinds the transports, moves running calls (re-INVITE) and
- * registers the enabled accounts again. baresip's own re-register would
- * also take disabled accounts and ones stopped after an auth failure.
- */
+/* Android's network callback (PlatformChannel.kt); see reset_network() */
 int sc_network_changed(void)
 {
-	struct network *net;
 	int err;
 
 	if (!g.running)
 		return EINVAL;
 
 	re_thread_enter();
-
-	net = baresip_network();
-	net_flush_addresses(net);
-	net_if_apply(add_laddr, net);
-	err = uag_reset_transp(false, true);
-
-	for (int i = 0; i < MAX_ACCOUNTS; i++) {
-		if (g.enabled[i] && g.uas[i])
-			(void)ua_register(g.uas[i]);
-	}
-
+	err = reset_network();
 	info("sippier: network changed, SIP transports reset\n");
 	re_thread_leave();
 

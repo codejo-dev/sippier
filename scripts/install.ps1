@@ -9,7 +9,7 @@
 #
 # Environment:
 #   SIPPIER_VERSION  the release to install, e.g. v0.2.0 (default: newest)
-#   GITHUB_TOKEN     for GitHub's API, against its rate limit (default: `gh auth token`)
+#   GITHUB_TOKEN     optional: sent to GitHub's API, against its rate limit
 
 & {
   $ErrorActionPreference = 'Stop'
@@ -32,10 +32,9 @@
   }
   $asset = "Sippier-windows-$arch.zip"
 
+  # The repository is public, so no token is needed: a stale one (from gh,
+  # say) would only make GitHub refuse
   $token = $env:GITHUB_TOKEN
-  if (-not $token -and (Get-Command gh -ErrorAction SilentlyContinue)) {
-    try { $token = gh auth token 2>$null } catch { }
-  }
   $headers = @{}
   if ($token) { $headers.Authorization = "Bearer $token" }
 
@@ -44,7 +43,7 @@
   try {
     $releases = Invoke-RestMethod $url -Headers $headers -UseBasicParsing
   } catch {
-    throw 'No release found'
+    throw "No release found: $($_.Exception.Message)"
   }
   # A list of releases, newest first, or one release
   $release = $releases[0]
